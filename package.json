@@ -1,0 +1,11 @@
+{
+  "name": "prisma-workspace",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "desktop:dev": "pnpm --filter @prisma/desktop dev",
+    "desktop:build": "pnpm --filter @prisma/desktop build",
+    "desktop:package": "pnpm --filter @prisma/desktop package:windows",
+    "desktop:typecheck": "pnpm --filter @prisma/desktop typecheck"
+  }
+}
