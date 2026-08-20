@@ -1,6 +1,6 @@
 {
   "name": "@prisma/desktop",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Desktop-приложение ПРИЗМА для исследования визуальных предпочтений",
   "author": "Команда проекта ПРИЗМА",
   "private": true,

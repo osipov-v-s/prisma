@@ -11,6 +11,8 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DESKTOP = ROOT / "src" / "desktop"
+RELEASE = DESKTOP / "release"
 
 
 def run(*command: str, cwd: Path = ROOT) -> None:
@@ -42,6 +44,40 @@ def package_script() -> str:
     )
 
 
+def package_desktop(pnpm: str) -> None:
+    """Package outside release so a running old unpacked app cannot lock the build."""
+
+    staging = ROOT / "build" / f"electron-package-{os.getpid()}"
+    run(
+        pnpm, "--filter", "@prisma/desktop", package_script(),
+        f"--config.directories.output={staging}",
+    )
+    artifacts = _package_artifacts(staging)
+    if not artifacts:
+        raise RuntimeError(f"Electron builder не создал установщик в {staging}")
+    RELEASE.mkdir(parents=True, exist_ok=True)
+    for artifact in artifacts:
+        destination = RELEASE / artifact.name
+        shutil.copy2(artifact, destination)
+        print(f"Release artifact: {destination}")
+    try:
+        shutil.rmtree(staging)
+    except OSError as error:
+        # A scanner may briefly hold staging files; the installer is already safe.
+        print(f"Warning: temporary package directory was not removed: {error}")
+
+
+def _package_artifacts(staging: Path) -> list[Path]:
+    """Return only distributable files, never the temporary unpacked application."""
+
+    patterns = {
+        "Windows": ("*.exe", "*.exe.blockmap"),
+        "Darwin": ("*.dmg", "*.dmg.blockmap"),
+    }.get(platform.system(), ("*.AppImage", "*.AppImage.blockmap"))
+    return sorted({item for pattern in patterns for item in staging.glob(pattern)
+                   if "__uninstaller" not in item.name})
+
+
 def pnpm_executable() -> str:
     """Find pnpm on every platform or accept an explicit CI/runtime path."""
 
@@ -66,7 +102,7 @@ def main() -> None:
     build_worker()
     run(pnpm, "desktop:build")
     if not options.skip_package:
-        run(pnpm, "--filter", "@prisma/desktop", package_script())
+        package_desktop(pnpm)
 
 
 if __name__ == "__main__":
