@@ -1,11 +1,8 @@
 packages:
-  - "apps/desktop"
+  - "src/desktop"
   - "packages/*"
 
-onlyBuiltDependencies:
-  - electron
-  - esbuild
 allowBuilds:
-  electron: set this to true or false
-  electron-winstaller: set this to true or false
-  esbuild: set this to true or false
+  electron: true
+  electron-winstaller: false
+  esbuild: true

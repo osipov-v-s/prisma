@@ -1,4 +1,4 @@
-"""XLSX exports with one observation per row and no merged research cells."""
+"""Render user and research XLSX files in long, machine-readable form."""
 
 from io import BytesIO
 from openpyxl import Workbook

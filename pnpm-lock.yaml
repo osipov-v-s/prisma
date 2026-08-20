@@ -8,18 +8,30 @@ importers:
 
   .: {}
 
-  apps/desktop:
+  packages/ui:
     dependencies:
+      react:
+        specifier: '>=19'
+        version: 19.2.8
+      react-dom:
+        specifier: '>=19'
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.4(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  src/desktop:
+    devDependencies:
       '@prisma/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      react:
-        specifier: ^19.0.0
-        version: 19.2.8
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.8(react@19.2.8)
-    devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
@@ -44,6 +56,12 @@ importers:
       electron-builder:
         specifier: ^26.0.12
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@8.1.1)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.8(react@19.2.8)
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -53,25 +71,6 @@ importers:
       wait-on:
         specifier: ^9.0.0
         version: 9.1.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-
-  packages/ui:
-    dependencies:
-      react:
-        specifier: '>=19'
-        version: 19.2.8
-      react-dom:
-        specifier: '>=19'
-        version: 19.2.8(react@19.2.8)
-    devDependencies:
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.18
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.4(@types/react@19.2.18)
-      typescript:
-        specifier: ^5.8.0
-        version: 5.9.3
 
 packages:
 

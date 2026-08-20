@@ -5,7 +5,10 @@
   "scripts": {
     "desktop:dev": "pnpm --filter @prisma/desktop dev",
     "desktop:build": "pnpm --filter @prisma/desktop build",
-    "desktop:package": "pnpm --filter @prisma/desktop package:windows",
+    "desktop:package": "python scripts/build.py",
     "desktop:typecheck": "pnpm --filter @prisma/desktop typecheck"
+  },
+  "dependencies": {
+    "pnpm": "^11.22.0"
   }
 }

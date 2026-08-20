@@ -3,7 +3,7 @@ export {};
 declare global {
   interface Window {
     prismaDesktop?: {
-      getServiceBaseUrl(): Promise<string>;
+      invoke<T>(method: string, params?: Record<string, unknown>): Promise<T>;
       getRuntimeInfo(): Promise<{ platform: string; version: string }>;
     };
   }

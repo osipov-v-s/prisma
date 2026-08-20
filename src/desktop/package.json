@@ -1,18 +1,20 @@
 {
   "name": "@prisma/desktop",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Desktop-приложение ПРИЗМА для исследования визуальных предпочтений",
   "author": "Команда проекта ПРИЗМА",
   "private": true,
   "type": "module",
-  "main": "dist/electron/main.js",
+  "main": "dist/main/main.js",
   "scripts": {
-    "dev": "concurrently -k -n UI,DESKTOP -c blue,green \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && pnpm build:electron && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron dist/electron/main.js\"",
+    "dev": "concurrently -k -n UI,DESKTOP -c blue,green \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && pnpm build:electron && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron dist/main/main.js\"",
     "build": "vite build && pnpm build:electron",
-    "package:windows": "pnpm build && electron-builder --win nsis",
-    "build:electron": "tsc -p electron/tsconfig.json",
-    "smoke": "cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 PRISMA_SKIP_SERVICE_START=1 PRISMA_SMOKE_TEST=1 electron dist/electron/main.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p electron/tsconfig.json"
+    "package:win": "electron-builder --win nsis",
+    "package:mac": "electron-builder --mac dmg",
+    "package:linux": "electron-builder --linux AppImage",
+    "build:electron": "tsc -p main/tsconfig.json",
+    "smoke": "cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 PRISMA_SMOKE_TEST=1 electron dist/main/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p main/tsconfig.json"
   },
   "dependencies": {},
   "devDependencies": {
@@ -39,9 +41,11 @@
     "directories": { "output": "release" },
     "files": ["dist/**/*", "package.json"],
     "extraResources": [
-      { "from": "../../build/service", "to": "service", "filter": ["prisma-service.exe"] }
+      { "from": "../../build/worker", "to": "worker", "filter": ["prisma-worker", "prisma-worker.exe"] }
     ],
     "win": { "target": ["nsis"], "artifactName": "PRISMA-Desktop-${version}-Setup.${ext}" },
+    "mac": { "target": ["dmg"], "artifactName": "PRISMA-Desktop-${version}.${ext}" },
+    "linux": { "target": ["AppImage"], "artifactName": "PRISMA-Desktop-${version}.${ext}" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
   }
 }

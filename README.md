@@ -1,49 +1,57 @@
 # ПРИЗМА Desktop
 
-Desktop-приложение для попарного выбора визуальных стимулов, регистрации времени
-реакции, математической обработки и экспорта отчётов. Web-версия оставлена на
-следующий этап.
+Desktop-приложение для попарного выбора изображений, регистрации времени реакции,
+математической обработки и экспорта PDF/XLSX.
 
-## Быстрый запуск для разработки
+В версии 2.0 нет локального web-сервера: React вызывает Electron IPC, а Electron
+передаёт запросы одному Python worker через stdin/stdout. Математическое ядро
+остаётся изолированным и не дублируется в TypeScript.
+
+## Запуск для разработки
 
 Нужны Python 3.11+, Node.js и pnpm.
 
 ```powershell
 py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,service]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,desktop-build]"
 pnpm install
 pnpm desktop:dev
 ```
 
-Electron сам запускает локальный Python-сервис. При первом запуске создаются
-`data/prisma.sqlite`, тестовая коллекция и две учётные записи:
+При первом запуске автоматически создаются SQLite-база, SQL-схема, демонстрационная
+коллекция и две учётные записи:
 
-- администратор: `admin` / `admin123`;
-- участник: `user` / `user1234`.
+- `admin` / `admin123`;
+- `user` / `user1234`.
 
-## Проверка и сборка
+## Проверка
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m alembic check
 pnpm desktop:typecheck
 pnpm desktop:build
-.\scripts\build_desktop.ps1
 ```
 
-Готовый установщик появляется в
-`apps/desktop/release/PRISMA-Desktop-1.0.0-Setup.exe`.
+## Сборка приложения
 
-## Где что находится
+Одна команда работает на текущей платформе:
 
-- `prisma/analytics` — изолированное математическое ядро;
-- `prisma/persistence` — SQLAlchemy-модели и репозитории;
-- `apps/service/prisma_service` — локальный API, сценарии и отчёты;
-- `packages/ui` — React/TypeScript интерфейс;
-- `apps/desktop` — Electron и Windows-сборка;
-- `migrations` — Alembic-миграции;
-- `tests` — математические и сквозные тесты;
-- `docs` — решения по формулам, архитектура и соответствие ТЗ.
+```powershell
+.\.venv\Scripts\python.exe scripts\build.py
+```
 
-Научные допущения перечислены в `docs/ANALYTICS_DECISIONS.md`, статус требований —
-в `docs/TZ_COMPLIANCE.md`.
+Windows-установщик создаётся в `src/desktop/release/`.
+
+## Структура
+
+- `prisma/analytics` — неизменяемое научное ядро;
+- `src/core` — общие dataclass-модели приложения;
+- `src/db` — простой `sqlite3` и SQL-миграции;
+- `src/service` — auth, коллекции, эксперименты и отчёты;
+- `src/worker.py` — JSON-lines bridge для Electron;
+- `src/desktop` — Electron main/preload и renderer entry;
+- `packages/ui` — React-компоненты, страницы и стили;
+- `tests` — тесты ядра, сервисов, миграции и worker-протокола.
+
+Существующая `prisma.sqlite` переносится автоматически: таблицы и данные не
+пересоздаются. Подробнее: `docs/REFACTORING_DECISIONS.md`.

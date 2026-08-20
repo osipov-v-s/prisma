@@ -15,7 +15,6 @@ interface TestsPageProps {
 
 export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
   const [tests, setTests] = useState<AvailableTest[]>([]);
-  const [selected, setSelected] = useState<AvailableTest | null>(null);
   const [session, setSession] = useState<TestSession | null>(null);
   const [unfinished, setUnfinished] = useState<TestSession[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,24 +37,8 @@ export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
         initialSession={session}
         onClose={() => {
           setSession(null);
-          setSelected(null);
         }}
         serviceBaseUrl={serviceBaseUrl}
-      />
-    );
-  }
-
-  if (selected) {
-    return (
-      <Instruction
-        error={error}
-        onBack={() => setSelected(null)}
-        onStart={() => {
-          void createTestSession(serviceBaseUrl, selected.id)
-            .then(setSession)
-            .catch((caught) => setError(caught.message));
-        }}
-        test={selected}
       />
     );
   }
@@ -101,7 +84,11 @@ export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
             </p>
             <button
               className="primary-action"
-              onClick={() => setSelected(test)}
+              onClick={() => {
+                void createTestSession(serviceBaseUrl, test.id)
+                  .then(setSession)
+                  .catch((caught) => setError(caught.message));
+              }}
               type="button"
             >
               Пройти тест
@@ -110,43 +97,5 @@ export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
         ))}
       </section>
     </>
-  );
-}
-
-interface InstructionProps {
-  test: AvailableTest;
-  error: string | null;
-  onBack(): void;
-  onStart(): void;
-}
-
-function Instruction({ test, error, onBack, onStart }: InstructionProps) {
-  const comparisonCount = (test.depth * test.width * (test.width - 1)) / 2;
-  const timeLabel =
-    test.time_mode === "no_limit" ? "без лимита" : `${test.time_limit_ms! / 1000} с`;
-
-  return (
-    <section className="instruction-card">
-      <span className="eyebrow">Инструкция</span>
-      <h1>{test.name}</h1>
-      <p>
-        В каждой паре выберите изображение, которое вам ближе. Правильных и
-        неправильных ответов нет. Сначала будут три тренировочных сравнения;
-        они не входят в расчёт.
-      </p>
-      <dl>
-        <div><dt>Типов</dt><dd>{test.width}</dd></div>
-        <div><dt>Изображений каждого типа</dt><dd>{test.depth}</dd></div>
-        <div><dt>Сравнений</dt><dd>{comparisonCount}</dd></div>
-        <div><dt>Время</dt><dd>{timeLabel}</dd></div>
-      </dl>
-      {error && <div className="editor-error">{error}</div>}
-      <div className="editor-actions">
-        <button className="secondary-action" onClick={onBack} type="button">Назад</button>
-        <button className="primary-action" onClick={onStart} type="button">
-          Перейти к тренировке
-        </button>
-      </div>
-    </section>
   );
 }

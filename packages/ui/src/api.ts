@@ -1,194 +1,197 @@
+/** Typed renderer calls sent directly through Electron IPC; no HTTP or fetch. */
+
 import type {
+  Account,
+  AvailableTest,
   CollectionRecord,
   CollectionWrite,
   HealthResponse,
-  SessionAnalysis,
-  Account,
-  AvailableTest,
   LoginResponse,
   TestSession,
   UserCreate,
 } from "./types";
 
+
 let accessToken: string | null = null;
+
+function invoke<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  if (!window.prismaDesktop) {
+    return Promise.reject(new Error("Desktop IPC bridge недоступен."));
+  }
+  return window.prismaDesktop.invoke<T>(method, params);
+}
+
+function authenticated<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  return invoke<T>(method, { ...params, token: accessToken });
+}
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  const response = await fetch(url, { ...init, headers });
-  if (!response.ok) {
-    let message = `Сервис вернул ошибку ${response.status}`;
-    try {
-      const payload = (await response.json()) as { detail?: string | string[] };
-      if (Array.isArray(payload.detail)) message = payload.detail.join("\n");
-      else if (payload.detail) message = payload.detail;
-    } catch {
-      // Keep the status-based message when the server response is not JSON.
-    }
-    throw new Error(message);
-  }
-  return (await response.json()) as T;
-}
-
-export async function login(serviceBaseUrl: string, loginName: string, password: string): Promise<LoginResponse> {
-  const result = await requestJson<LoginResponse>(`${serviceBaseUrl}/api/v1/auth/login`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ login: loginName, password }),
-  });
+export async function login(
+  _serviceBaseUrl: string,
+  loginName: string,
+  password: string,
+): Promise<LoginResponse> {
+  const result = await invoke<LoginResponse>("auth.login", { login: loginName, password });
   setAccessToken(result.access_token);
   return result;
 }
 
-export async function logout(serviceBaseUrl: string): Promise<void> {
-  await fetch(`${serviceBaseUrl}/api/v1/auth/logout`, {
-    method: "POST", headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
+export async function logout(_serviceBaseUrl: string): Promise<void> {
+  await invoke("auth.logout", { token: accessToken });
   setAccessToken(null);
 }
 
-export function getCurrentAccount(serviceBaseUrl: string): Promise<Account> {
-  return requestJson(`${serviceBaseUrl}/api/v1/auth/me`);
+export function getHealth(_serviceBaseUrl: string): Promise<HealthResponse> {
+  return invoke("health");
 }
 
-export function getUsers(serviceBaseUrl: string): Promise<Account[]> {
-  return requestJson(`${serviceBaseUrl}/api/v1/users`);
+export function getCurrentAccount(_serviceBaseUrl: string): Promise<Account> {
+  return authenticated("auth.me");
 }
 
-export function createUser(serviceBaseUrl: string, payload: UserCreate): Promise<Account> {
-  return requestJson(`${serviceBaseUrl}/api/v1/users`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-  });
+export function getUsers(_serviceBaseUrl: string): Promise<Account[]> {
+  return authenticated("users.list");
 }
 
-export async function deleteUser(serviceBaseUrl: string, accountId: string): Promise<void> {
-  const response = await fetch(`${serviceBaseUrl}/api/v1/users/${accountId}`, {
-    method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!response.ok) throw new Error("Не удалось удалить пользователя");
+export function createUser(_serviceBaseUrl: string, data: UserCreate): Promise<Account> {
+  return authenticated("users.create", { data });
 }
 
-export function getAvailableTests(serviceBaseUrl: string): Promise<AvailableTest[]> {
-  return requestJson(`${serviceBaseUrl}/api/v1/tests`);
+export function deleteUser(_serviceBaseUrl: string, accountId: string): Promise<void> {
+  return authenticated("users.delete", { account_id: accountId });
 }
 
-export function createTestSession(serviceBaseUrl: string, collectionId: string): Promise<TestSession> {
-  return requestJson(`${serviceBaseUrl}/api/v1/sessions`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ collection_id: collectionId }),
-  });
-}
-
-export function getSessions(serviceBaseUrl: string): Promise<TestSession[]> {
-  return requestJson(`${serviceBaseUrl}/api/v1/sessions`);
-}
-
-export function getSession(serviceBaseUrl: string, sessionId: string, trace = false): Promise<TestSession> {
-  return requestJson(`${serviceBaseUrl}/api/v1/sessions/${sessionId}?trace=${trace}`);
-}
-
-export function presentNext(serviceBaseUrl: string, sessionId: string): Promise<TestSession> {
-  return requestJson(`${serviceBaseUrl}/api/v1/sessions/${sessionId}/present`, { method: "POST" });
-}
-
-export function startMainTest(serviceBaseUrl: string, sessionId: string): Promise<TestSession> {
-  return requestJson(`${serviceBaseUrl}/api/v1/sessions/${sessionId}/start`, { method: "POST" });
-}
-
-export function savePairResponse(serviceBaseUrl: string, sessionId: string, comparisonIndex: number,
-  selectedItemId: string | null, reactionTimeMs: number, timedOut = false): Promise<TestSession> {
-  return requestJson(`${serviceBaseUrl}/api/v1/sessions/${sessionId}/responses/${comparisonIndex}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ selected_item_id: selectedItemId, reaction_time_ms: reactionTimeMs, timed_out: timedOut }),
-  });
-}
-
-export async function downloadReport(serviceBaseUrl: string, path: string, filename: string): Promise<void> {
-  const response = await fetch(`${serviceBaseUrl}${path}`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
-  if (!response.ok) throw new Error("Не удалось сформировать отчёт");
-  const url = URL.createObjectURL(await response.blob());
-  const anchor = document.createElement("a");
-  anchor.href = url; anchor.download = filename; anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
-
-export function getHealth(serviceBaseUrl: string): Promise<HealthResponse> {
-  return requestJson(`${serviceBaseUrl}/api/v1/health`);
-}
-
-export function getDemoAnalysis(
-  serviceBaseUrl: string,
-): Promise<SessionAnalysis> {
-  return requestJson(`${serviceBaseUrl}/api/v1/analysis/demo`);
-}
-
-export function getCollections(serviceBaseUrl: string): Promise<CollectionRecord[]> {
-  return requestJson(`${serviceBaseUrl}/api/v1/collections`);
+export function getCollections(_serviceBaseUrl: string): Promise<CollectionRecord[]> {
+  return authenticated("collections.list");
 }
 
 export function createCollection(
-  serviceBaseUrl: string,
-  collection: CollectionWrite,
+  _serviceBaseUrl: string,
+  data: CollectionWrite,
 ): Promise<CollectionRecord> {
-  return requestJson(`${serviceBaseUrl}/api/v1/collections`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(collection),
-  });
+  return authenticated("collections.create", { data });
 }
 
 export function updateCollection(
-  serviceBaseUrl: string,
+  _serviceBaseUrl: string,
   collectionId: string,
-  collection: CollectionWrite,
+  data: CollectionWrite,
 ): Promise<CollectionRecord> {
-  return requestJson(`${serviceBaseUrl}/api/v1/collections/${collectionId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(collection),
-  });
+  return authenticated("collections.update", { collection_id: collectionId, data });
 }
 
 export function activateCollection(
-  serviceBaseUrl: string,
+  _serviceBaseUrl: string,
   collectionId: string,
 ): Promise<CollectionRecord> {
-  return requestJson(
-    `${serviceBaseUrl}/api/v1/collections/${collectionId}/activate`,
-    { method: "POST" },
-  );
+  return authenticated("collections.activate", { collection_id: collectionId });
 }
 
 export function deactivateCollection(
-  serviceBaseUrl: string,
+  _serviceBaseUrl: string,
   collectionId: string,
 ): Promise<CollectionRecord> {
-  return requestJson(
-    `${serviceBaseUrl}/api/v1/collections/${collectionId}/deactivate`,
-    { method: "POST" },
-  );
+  return authenticated("collections.deactivate", { collection_id: collectionId });
 }
 
-export function uploadCollectionImage(
-  serviceBaseUrl: string,
+export async function uploadCollectionImage(
+  _serviceBaseUrl: string,
   collectionId: string,
   rowIndex: number,
   levelIndex: number,
   image: File,
 ): Promise<CollectionRecord> {
-  const body = new FormData();
-  body.append("image", image);
-  return requestJson(
-    `${serviceBaseUrl}/api/v1/collections/${collectionId}/rows/${rowIndex}/levels/${levelIndex}/image`,
-    { method: "POST", body },
-  );
+  return authenticated("collections.upload", {
+    collection_id: collectionId,
+    row_index: rowIndex,
+    level_index: levelIndex,
+    content_type: image.type,
+    content_base64: await fileAsBase64(image),
+  });
 }
 
-export function mediaUrl(serviceBaseUrl: string, path: string | null): string | null {
-  return path ? `${serviceBaseUrl}${path}` : null;
+export function getAvailableTests(_serviceBaseUrl: string): Promise<AvailableTest[]> {
+  return authenticated("tests.list");
+}
+
+export function createTestSession(
+  _serviceBaseUrl: string,
+  collectionId: string,
+): Promise<TestSession> {
+  return authenticated("sessions.create", { collection_id: collectionId });
+}
+
+export function getSessions(_serviceBaseUrl: string): Promise<TestSession[]> {
+  return authenticated("sessions.list");
+}
+
+export function getSession(
+  _serviceBaseUrl: string,
+  sessionId: string,
+  trace = false,
+): Promise<TestSession> {
+  return authenticated("sessions.get", { session_id: sessionId, trace });
+}
+
+export function presentNext(_serviceBaseUrl: string, sessionId: string): Promise<TestSession> {
+  return authenticated("sessions.present", { session_id: sessionId });
+}
+
+export function startMainTest(_serviceBaseUrl: string, sessionId: string): Promise<TestSession> {
+  return authenticated("sessions.start", { session_id: sessionId });
+}
+
+export function savePairResponse(
+  _serviceBaseUrl: string,
+  sessionId: string,
+  presentationIndex: number,
+  selectedItemId: string | null,
+  reactionTimeMs: number,
+  timedOut = false,
+): Promise<TestSession> {
+  return authenticated("sessions.respond", {
+    session_id: sessionId,
+    presentation_index: presentationIndex,
+    data: { selected_item_id: selectedItemId, reaction_time_ms: reactionTimeMs, timed_out: timedOut },
+  });
+}
+
+export async function downloadReport(
+  _serviceBaseUrl: string,
+  path: string,
+  filename: string,
+): Promise<void> {
+  const method = path.endsWith("report.pdf")
+    ? "reports.pdf"
+    : path.includes("/admin/") ? "reports.admin_xlsx" : "reports.xlsx";
+  const sessionId = path.match(/sessions\/([^/]+)/)?.[1];
+  const content = await authenticated<string>(method, { session_id: sessionId });
+  saveBase64(content, filename);
+}
+
+export function mediaUrl(_serviceBaseUrl: string, path: string | null): string | null {
+  return path;
+}
+
+function fileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Не удалось прочитать изображение."));
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
+    reader.readAsDataURL(file);
+  });
+}
+
+function saveBase64(content: string, filename: string): void {
+  const binary = atob(content);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes]));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
