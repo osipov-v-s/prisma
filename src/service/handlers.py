@@ -20,7 +20,7 @@ def handle(method: str, params: dict[str, Any]) -> Any:
 
     if method == "health":
         return {"status": "ok", "service": "ПРИЗМА Desktop Worker",
-                "service_version": "2.0.0", "analytics_version": ALGORITHM_VERSION,
+                "service_version": "2.0.3", "analytics_version": ALGORITHM_VERSION,
                 "schema_version": schema_version()}
     if method == "auth.login":
         return auth.login(params["login"], params["password"])

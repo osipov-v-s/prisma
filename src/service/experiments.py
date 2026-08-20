@@ -164,18 +164,26 @@ def _advance_or_finish(session_id: str) -> None:
 
 
 def _schedule(snapshot: dict, seed: str) -> list[dict]:
+    """Build randomized pair blocks without ever mixing stimulus levels."""
+
     generator = random.Random(seed)
     slots = {(cell["type_id"], cell["level_index"]): cell
              for row in snapshot["rows"] for cell in row["cells"]}
     type_ids = [row["type_id"] for row in snapshot["rows"]]
     pairs = []
     for level in range(1, snapshot["depth"] + 1):
+        level_pairs = []
         for first, second in combinations(type_ids, 2):
             left, right = (second, first) if generator.random() < .5 else (first, second)
-            pairs.append({"level_index": level, "left_type_id": left, "right_type_id": right,
-                          "left_item_id": slots[(left, level)]["item_id"],
-                          "right_item_id": slots[(right, level)]["item_id"]})
-    generator.shuffle(pairs)
+            level_pairs.append({
+                "level_index": level,
+                "left_type_id": left,
+                "right_type_id": right,
+                "left_item_id": slots[(left, level)]["item_id"],
+                "right_item_id": slots[(right, level)]["item_id"],
+            })
+        generator.shuffle(level_pairs)
+        pairs.extend(level_pairs)
     return [{**item, "presentation_index": index} for index, item in enumerate(pairs, 1)]
 
 

@@ -47,5 +47,4 @@ class PairAggregation:
     majority_count: int
     selected_observations: list[ObservationTrace]
     observations: list[ObservationTrace]
-    pair_time_ms: float | None
     reason: str | None = None

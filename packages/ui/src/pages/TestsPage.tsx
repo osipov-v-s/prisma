@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   createTestSession,
@@ -18,6 +18,8 @@ export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
   const [session, setSession] = useState<TestSession | null>(null);
   const [unfinished, setUnfinished] = useState<TestSession[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [startingTestId, setStartingTestId] = useState<string | null>(null);
+  const startingTest = useRef(false);
 
   useEffect(() => {
     void Promise.all([
@@ -30,6 +32,22 @@ export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
       })
       .catch((caught) => setError(String(caught)));
   }, [serviceBaseUrl]);
+
+  async function startTest(testId: string) {
+    // A ref closes the short gap before React applies the disabled state.
+    if (startingTest.current) return;
+    startingTest.current = true;
+    setStartingTestId(testId);
+    setError(null);
+    try {
+      setSession(await createTestSession(serviceBaseUrl, testId));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось начать тест");
+    } finally {
+      startingTest.current = false;
+      setStartingTestId(null);
+    }
+  }
 
   if (session) {
     return (
@@ -84,14 +102,11 @@ export function TestsPage({ serviceBaseUrl }: TestsPageProps) {
             </p>
             <button
               className="primary-action"
-              onClick={() => {
-                void createTestSession(serviceBaseUrl, test.id)
-                  .then(setSession)
-                  .catch((caught) => setError(caught.message));
-              }}
+              disabled={startingTestId !== null}
+              onClick={() => void startTest(test.id)}
               type="button"
             >
-              Пройти тест
+              {startingTestId === test.id ? "Подготовка…" : "Пройти тест"}
             </button>
           </article>
         ))}

@@ -77,7 +77,7 @@ export function CollectionsPage({ health, serviceBaseUrl }: CollectionsPageProps
         <div className="page-heading__actions">
           <div className={health ? "service-state is-online" : "service-state"}>
             <span />
-            {health ? "SQLite и API подключены" : "Подключение…"}
+            {health ? "SQLite и IPC подключены" : "Подключение…"}
           </div>
           <button className="primary-action" onClick={() => setEditing(null)} type="button">
             + Новая коллекция
@@ -89,7 +89,7 @@ export function CollectionsPage({ health, serviceBaseUrl }: CollectionsPageProps
         <article className="summary-card"><span>Всего коллекций</span><strong>{collections.length}</strong><small>в локальной базе</small></article>
         <article className="summary-card"><span>Активные</span><strong>{activeCount}</strong><small>видимы пользователю</small></article>
         <article className="summary-card"><span>Черновики</span><strong>{draftCount}</strong><small>можно заполнять постепенно</small></article>
-        <article className="summary-card summary-card--version"><span>Хранилище</span><strong>SQLite + SQLAlchemy</strong><small>готово к PostgreSQL</small></article>
+        <article className="summary-card summary-card--version"><span>Хранилище</span><strong>SQLite</strong><small>прямой доступ без ORM</small></article>
       </section>
 
       {error && <div className="editor-error" role="alert">{error}</div>}

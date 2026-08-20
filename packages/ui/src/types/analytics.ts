@@ -20,6 +20,10 @@ export interface ModeAnalysis {
   coverage: number;
   consistency: ConsistencyResult | null;
   iteration_strategy: string;
+  binary_matrix: Array<Array<number | null>> | null;
+  pair_time_matrix_ms: Array<Array<number | null>> | null;
+  time_weighted_matrix: Array<Array<number | null>> | null;
+  validation_total_time_ms: number | null;
 }
 
 export interface SessionAnalysis {

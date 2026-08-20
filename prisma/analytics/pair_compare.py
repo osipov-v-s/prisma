@@ -31,7 +31,7 @@ from .models import (
 )
 
 
-ALGORITHM_VERSION = "prisma-analytics/0.4.0-prototype"
+ALGORITHM_VERSION = "prisma-analytics/0.6.0-level-majority"
 CONSISTENCY_THRESHOLD = 0.5
 FASTEST_MAJORITY_OBSERVATIONS = 2
 
@@ -339,7 +339,12 @@ def compare_analysis_modes(
 def aggregate_pair_observations(
     responses: Sequence[PairResponse], collection_schema: CollectionSchema
 ) -> list[PairAggregation]:
-    """Validate and aggregate repeated type pairs across all depth levels."""
+    """Aggregate one same-level observation per column into a pair majority.
+
+    Stimuli are compared only inside their own level. Levels are joined only
+    after presentation, when the odd number of answers determines the winner
+    for each unordered pair of types.
+    """
 
     ordered = _validate_inputs(responses, collection_schema)
     return _aggregate_validated_pair_observations(ordered, collection_schema)
@@ -401,7 +406,6 @@ def _aggregate_validated_pair_observations(
                     majority_count=0,
                     selected_observations=[],
                     observations=trace,
-                    pair_time_ms=None,
                     reason="Every depth level must contain an answered observation for this pair.",
                 )
             )
@@ -424,7 +428,6 @@ def _aggregate_validated_pair_observations(
                         _observation_trace(response, "tie_observation")
                         for response in observations
                     ],
-                    pair_time_ms=None,
                     reason="The pair has no strict majority.",
                 )
             )
@@ -434,13 +437,19 @@ def _aggregate_validated_pair_observations(
         majority_observations = [
             response for response in answered if response.selected_type_id == majority
         ]
-        fastest = sorted(
+        fastest_by_time = sorted(
             majority_observations,
             key=lambda response: (
                 float(response.reaction_time_ms),
                 response.comparison_index,
             ),
         )[:FASTEST_MAJORITY_OBSERVATIONS]
+        # The workbook places the two retained observations into opposite
+        # cells in their original presentation order, not in speed order.
+        fastest = sorted(
+            fastest_by_time,
+            key=lambda response: response.comparison_index,
+        )
         fastest_indices = {response.comparison_index for response in fastest}
         trace: list[ObservationTrace] = []
         for response in observations:
@@ -474,11 +483,6 @@ def _aggregate_validated_pair_observations(
                 majority_count=len(majority_observations),
                 selected_observations=selected_trace,
                 observations=trace,
-                pair_time_ms=(
-                    sum(float(response.reaction_time_ms) for response in fastest)
-                    if enough_for_time
-                    else None
-                ),
                 reason=(
                     None
                     if enough_for_time
@@ -514,32 +518,50 @@ def build_collection_binary_matrix(
 def build_pair_time_matrix(
     aggregations: Sequence[PairAggregation], type_ids: Sequence[Identifier]
 ) -> np.ndarray:
-    """Build symmetric T_ij lookup from the two selected observations per pair."""
+    """Place the two retained times in opposite cells of each type pair."""
 
     index = {type_id: position for position, type_id in enumerate(type_ids)}
     matrix = np.full((len(type_ids), len(type_ids)), np.nan, dtype=float)
     for aggregation in aggregations:
-        if aggregation.pair_time_ms is None:
+        selected = aggregation.selected_observations
+        if len(selected) != FASTEST_MAJORITY_OBSERVATIONS:
             raise AnalyticsValidationError(
-                "Every pair needs two fastest majority observations for T_ij."
+                "Every pair needs two fastest majority observations for T_ij cells."
+            )
+        times = [item.reaction_time_ms for item in selected]
+        if any(value is None for value in times):
+            raise AnalyticsValidationError(
+                "Every selected majority observation must have reaction_time_ms."
             )
         first = index[aggregation.first_type_id]
         second = index[aggregation.second_type_id]
-        matrix[first, second] = aggregation.pair_time_ms
-        matrix[second, first] = aggregation.pair_time_ms
+        matrix[first, second] = float(times[0])
+        matrix[second, first] = float(times[1])
     return matrix
 
 
 def compute_validation_total_time(
     aggregations: Sequence[PairAggregation],
 ) -> float:
-    """Compute T as the sum of every pair's two selected majority observations."""
+    """Compute T as the sum of all retained directed-cell times."""
 
-    if not aggregations or any(item.pair_time_ms is None for item in aggregations):
+    if not aggregations or any(
+        len(item.selected_observations) != FASTEST_MAJORITY_OBSERVATIONS
+        for item in aggregations
+    ):
         raise AnalyticsValidationError(
-            "Every pair must have a finite T_ij before computing validation total T."
+            "Every pair must have two retained observations before computing T."
         )
-    total = sum(float(item.pair_time_ms) for item in aggregations)
+    selected_times = [
+        observation.reaction_time_ms
+        for item in aggregations
+        for observation in item.selected_observations
+    ]
+    if any(value is None for value in selected_times):
+        raise AnalyticsValidationError(
+            "Every retained observation must have reaction_time_ms."
+        )
+    total = sum(float(value) for value in selected_times if value is not None)
     if not math.isfinite(total) or total <= 0:
         raise AnalyticsValidationError("Validation total time T must be positive and finite.")
     return total
@@ -551,7 +573,7 @@ def build_time_weighted_matrix(
     total_validation_time_ms: float,
     algorithm: TimeAlgorithm | str = TimeAlgorithm.SOURCE_V1,
 ) -> np.ndarray:
-    """Build P* from pair totals T_ij and the selected-observation total T."""
+    """Build P* from the two directed times retained for every pair."""
 
     selected_algorithm = _coerce_enum(algorithm, TimeAlgorithm, "algorithm")
     total_time = float(total_validation_time_ms)
@@ -561,22 +583,35 @@ def build_time_weighted_matrix(
     weighted = np.full_like(binary, np.nan, dtype=float)
     for i in range(size):
         for j in range(i + 1, size):
-            pair_time = float(pair_times_ms[i, j])
-            if not math.isfinite(pair_time) or pair_time <= 0 or pair_time > total_time:
-                raise AnalyticsValidationError(
-                    "Every T_ij must be positive, finite, and no greater than T."
+            weighted[i, j] = _weighted_cell(
+                binary[i, j], pair_times_ms[i, j], total_time
+            )
+            if selected_algorithm is TimeAlgorithm.SOURCE_V1:
+                weighted[j, i] = _weighted_cell(
+                    binary[j, i], pair_times_ms[j, i], total_time
                 )
-            coefficient = 1.0 - pair_time / total_time
-            weighted[i, j] = (
-                binary[i, j] * coefficient
-                + (1.0 - binary[i, j]) * (1.0 - coefficient)
-            )
-            weighted[j, i] = (
-                1.0 - binary[i, j]
-                if selected_algorithm is TimeAlgorithm.SOURCE_V1
-                else 1.0 - weighted[i, j]
-            )
+            else:
+                weighted[j, i] = 1.0 - weighted[i, j]
     return weighted
+
+
+def _weighted_cell(binary_value: float, time_ms: float, total_time_ms: float) -> float:
+    """Apply the workbook formula to one directed off-diagonal cell."""
+
+    directed_time = float(time_ms)
+    if (
+        not math.isfinite(directed_time)
+        or directed_time <= 0
+        or directed_time > total_time_ms
+    ):
+        raise AnalyticsValidationError(
+            "Every directed T_ij must be positive, finite, and no greater than T."
+        )
+    coefficient = 1.0 - directed_time / total_time_ms
+    return (
+        binary_value * coefficient
+        + (1.0 - binary_value) * (1.0 - coefficient)
+    )
 
 
 def calculate_consistency(
@@ -631,9 +666,11 @@ def iterate_rank_weights(
     selected_strategy = _coerce_enum(strategy, IterationStrategy, "strategy")
     size = matrix.shape[0]
     numeric_matrix = np.nan_to_num(matrix, nan=0.0)
-    previous = np.full(size, 1.0 / size, dtype=float)
+    # The reference workbook starts from W(0) = [1, ..., 1].  Later vectors
+    # are normalized after each complete row-wise step.
+    previous = np.ones(size, dtype=float)
     initial = previous.tolist()
-    normalized_vectors = [initial]
+    normalized_vectors: list[list[float]] = []
     raw_vectors: list[list[float]] = []
     final_delta: float | None = None
     for iteration in range(1, max_iterations + 1):

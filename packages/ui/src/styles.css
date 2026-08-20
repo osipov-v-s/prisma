@@ -1018,6 +1018,8 @@ button {
 .stimulus-pair button span { display: block; background: #fff; color: #294a8a; font-weight: 650; padding: 14px; }
 .stimulus-pair__or { color: #9299a5; font-size: 12px; text-align: center; }
 .runner-note { color: #838b99; font-size: 11px; text-align: center; }
+.runner-error { align-items: center; justify-content: space-between; }
+.runner-error .text-action { flex: 0 0 auto; }
 .runner-transition { max-width: 700px; margin: 90px auto; padding: 55px; text-align: center; }
 .runner-transition p { color: #687184; line-height: 1.7; }
 .runner-transition .primary-action { margin: 26px auto 0; }

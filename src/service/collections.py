@@ -170,8 +170,8 @@ def _validate_draft(data: dict) -> None:
 
 def _activation_errors(collection: dict) -> list[str]:
     errors = []
-    if collection["depth"] < 5 or collection["depth"] % 2 == 0:
-        errors.append("Для активации глубина должна быть нечётной и не меньше пяти.")
+    if collection["depth"] < 1 or collection["depth"] % 2 == 0:
+        errors.append("Для активации глубина должна быть положительной и нечётной.")
     typed_rows = [row for row in collection["rows"] if row["type_id"]]
     if len(typed_rows) != collection["width"]:
         errors.append("Не заданы типы для всех строк.")

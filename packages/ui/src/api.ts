@@ -140,10 +140,6 @@ export function presentNext(_serviceBaseUrl: string, sessionId: string): Promise
   return authenticated("sessions.present", { session_id: sessionId });
 }
 
-export function startMainTest(_serviceBaseUrl: string, sessionId: string): Promise<TestSession> {
-  return authenticated("sessions.start", { session_id: sessionId });
-}
-
 export function savePairResponse(
   _serviceBaseUrl: string,
   sessionId: string,

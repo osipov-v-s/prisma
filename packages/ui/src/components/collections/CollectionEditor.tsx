@@ -21,7 +21,7 @@ interface CollectionEditorProps {
   onSaved(collection: CollectionRecord): void;
 }
 
-const DEPTH_OPTIONS = [1, 3, 5, 7, 9];
+const DEPTH_OPTIONS = Array.from({ length: 50 }, (_, index) => index * 2 + 1);
 
 function emptyCell(levelIndex: number): CollectionCell {
   return {
@@ -226,7 +226,7 @@ export function CollectionEditor({
         <button className="secondary-action" disabled={saving} onClick={() => void save()} type="button">
           {saving ? "Сохранение…" : "Сохранить черновик"}
         </button>
-        <button className="primary-action" disabled={saving || depth < 5} onClick={() => void save(true)} type="button">
+        <button className="primary-action" disabled={saving} onClick={() => void save(true)} type="button">
           Сохранить и активировать
         </button>
       </div>

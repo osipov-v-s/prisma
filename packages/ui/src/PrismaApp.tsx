@@ -25,6 +25,7 @@ export function PrismaApp({
   const [section, setSection] = useState<AppSection>("collections");
   const [account, setAccount] = useState<Account | null>(null);
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -35,9 +36,17 @@ export function PrismaApp({
       attempts += 1;
       try {
         const response = await getHealth(serviceBaseUrl);
-        if (active) setHealth(response);
-      } catch {
-        if (active && attempts < 30) timer = setTimeout(connect, 500);
+        if (active) {
+          console.info(`[prisma-ui] local service connected on attempt ${attempts}`);
+          setHealth(response);
+          setConnectionError(null);
+        }
+      } catch (caught) {
+        if (!active) return;
+        const message = caught instanceof Error ? caught.message : "Неизвестная ошибка IPC";
+        console.warn(`[prisma-ui] health attempt ${attempts} failed: ${message}`);
+        setConnectionError(message);
+        if (attempts < 30) timer = setTimeout(connect, 500);
       }
     }
 
@@ -49,7 +58,7 @@ export function PrismaApp({
   }, [serviceBaseUrl]);
 
   if (!account) {
-    return <LoginPage connected={Boolean(health)} onLogin={(loggedIn) => {
+    return <LoginPage connected={Boolean(health)} connectionError={connectionError} onLogin={(loggedIn) => {
       setAccount(loggedIn); setSection(loggedIn.roles.includes("ADMIN") ? "collections" : "tests");
     }} serviceBaseUrl={serviceBaseUrl} />;
   }

@@ -61,7 +61,8 @@ def main() -> None:
 
     if not options.skip_install:
         run(sys.executable, "-m", "pip", "install", "-e", ".[dev,desktop-build]")
-        run(pnpm, "install")
+        # A project-local store avoids machine-specific pnpm paths in node_modules.
+        run(pnpm, "install", "--store-dir", str(ROOT / ".pnpm-store"))
     build_worker()
     run(pnpm, "desktop:build")
     if not options.skip_package:

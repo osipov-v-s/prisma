@@ -2,9 +2,14 @@ import { type FormEvent, useState } from "react";
 import { login } from "../api";
 import type { Account } from "../types";
 
-interface Props { serviceBaseUrl: string; connected: boolean; onLogin(account: Account): void; }
+interface Props {
+  serviceBaseUrl: string;
+  connected: boolean;
+  connectionError: string | null;
+  onLogin(account: Account): void;
+}
 
-export function LoginPage({ serviceBaseUrl, connected, onLogin }: Props) {
+export function LoginPage({ serviceBaseUrl, connected, connectionError, onLogin }: Props) {
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +30,9 @@ export function LoginPage({ serviceBaseUrl, connected, onLogin }: Props) {
       <label className="field"><span>Логин</span><input autoFocus value={loginName} onChange={(event) => setLoginName(event.target.value)} /></label>
       <label className="field"><span>Пароль</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
       {error && <div className="editor-error">{error}</div>}
+      {!connected && connectionError && (
+        <div className="editor-error">Локальный сервис недоступен: {connectionError}</div>
+      )}
       <button className="primary-action" disabled={!connected || loading} type="submit">
         {!connected ? "Подключение к сервису…" : loading ? "Вход…" : "Войти"}
       </button>

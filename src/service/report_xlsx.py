@@ -36,6 +36,22 @@ def _append_responses(sheet, session: dict) -> None:
                       item["shown_at"], item["answered_at"]])
 
 
+def _append_matrices(sheet, analysis: dict, session_id: str | None = None) -> None:
+    """Write every stored matrix cell in research-friendly long form."""
+
+    prefix = ["session_id"] if session_id is not None else []
+    sheet.append([*prefix, "analysis_mode", "matrix", "row_index",
+                  "column_index", "value"])
+    matrix_fields = ("binary_matrix", "pair_time_matrix_ms", "time_weighted_matrix")
+    for mode in ("choice_only", "choice_and_time"):
+        mode_result = analysis.get(mode, {})
+        for field in matrix_fields:
+            for row_index, row in enumerate(mode_result.get(field) or [], start=1):
+                for column_index, value in enumerate(row, start=1):
+                    values = [mode, field, row_index, column_index, value]
+                    sheet.append([session_id, *values] if session_id is not None else values)
+
+
 def build_session_xlsx(session: dict) -> bytes:
     workbook = Workbook()
     summary = workbook.active
@@ -49,6 +65,7 @@ def build_session_xlsx(session: dict) -> bytes:
         for score in analysis.get(mode, {}).get("overall") or []:
             summary.append([f'{mode}:{score["type_name"]}', score["percent"]])
     _append_responses(workbook.create_sheet("Responses"), session)
+    _append_matrices(workbook.create_sheet("Matrices"), analysis)
     levels = workbook.create_sheet("LevelResults")
     levels.append(["analysis_mode", "pair_first_type", "pair_second_type", "level_index",
                    "observation_role", "selected_type_id", "reaction_time_ms"])
@@ -62,8 +79,12 @@ def build_session_xlsx(session: dict) -> bytes:
     metadata.append(["algorithm_version", analysis.get("algorithm_version")])
     for mode in ("choice_only", "choice_and_time"):
         item = analysis.get(mode, {})
-        for key in ("status", "time_algorithm", "iteration_strategy", "coverage", "epsilon", "max_iterations"):
+        for key in ("status", "time_algorithm", "iteration_strategy", "coverage",
+                    "validation_total_time_ms", "epsilon", "max_iterations"):
             metadata.append([f"{mode}.{key}", str(item.get(key))])
+        iteration = item.get("iteration") or {}
+        metadata.append([f"{mode}.iterations", iteration.get("iterations")])
+        metadata.append([f"{mode}.final_delta", iteration.get("final_delta")])
     return _finish(workbook)
 
 
@@ -89,6 +110,9 @@ def build_admin_xlsx(sessions: list[dict]) -> bytes:
                         "level_index", "role", "selected_type_id", "reaction_time_ms"])
     metadata = workbook.create_sheet("AlgorithmMetadata")
     metadata.append(["session_id", "algorithm_version", "mode", "status", "algorithm", "coverage", "epsilon"])
+    matrices = workbook.create_sheet("MatrixCells")
+    matrices.append(["session_id", "analysis_mode", "matrix", "row_index",
+                     "column_index", "value"])
     for session in sessions:
         session_sheet.append([session[key] for key in ("id", "account_id", "user_name", "collection_id",
                               "collection_name", "started_at", "finished_at", "status", "time_mode",
@@ -100,6 +124,10 @@ def build_admin_xlsx(sessions: list[dict]) -> bytes:
             first = False
         for row in sheet.iter_rows(min_row=2, values_only=True): response_sheet.append(row)
         analysis = session.get("analysis") or {}
+        temporary_matrices = Workbook(); matrix_sheet = temporary_matrices.active
+        _append_matrices(matrix_sheet, analysis, session["id"])
+        for row in matrix_sheet.iter_rows(min_row=2, values_only=True):
+            matrices.append(row)
         for mode in ("choice_only", "choice_and_time"):
             value = analysis.get(mode, {})
             for score in value.get("overall") or []:
